@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 
 // ============================================
-// الإعدادات - غيّرها بعدين
+// الإعدادات
 // ============================================
 const CHATWOOT_BASE_URL = 'https://chat.engosoft.com';
 const CHATWOOT_ACCOUNT_ID = '2';
@@ -62,7 +62,10 @@ app.post('/chatwoot/webhook', async (req, res) => {
                 text: payload.content,
                 payload: {
                     type: 'text',
-                    text: payload.content
+                    text: payload.content,
+                    chatwootConversationId: chatwootConvId,
+                    chatwootUserId: chatwootUserId,
+                    senderName: payload.sender?.name || ''
                 }
             },
             {
