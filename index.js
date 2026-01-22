@@ -38,6 +38,13 @@ app.post('/chatwoot/webhook', async (req, res) => {
             return res.status(200).json({ status: 'skipped' });
         }
         
+        // ✅ تجاهل لو المحادثة open (Agent شغال)
+        const convStatus = payload.conversation?.status;
+        if (convStatus === 'open') {
+            console.log('⏭️ Skipping - conversation is open (agent handling)');
+            return res.status(200).json({ status: 'skipped - agent handling' });
+        }
+        
         const chatwootConvId = String(payload.conversation.id);
         const chatwootUserId = String(payload.sender?.id || 'unknown');
         const messageId = String(payload.id || Date.now());
