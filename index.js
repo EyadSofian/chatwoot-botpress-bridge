@@ -14,8 +14,9 @@ const CHATWOOT_API_TOKEN = 'd8BzFgjKZAwUD46ZHkcPXzkT';
 const BOTPRESS_WEBHOOK_URL = 'https://webhook.botpress.cloud/ae668903-86f4-434f-b549-8bee2d73faf5';
 const BOTPRESS_PAT = 'bp_pat_lUBqWK1NU14ESVpsfGyYvSKf370cj31XSNzA';
 
-// تخزين conversation mapping
+// تخزين conversation mapping و tracking للـ status
 const conversationMap = new Map();
+const conversationStatusHistory = new Map(); // ✅ جديد
 
 // ============================================
 // 1. Webhook من Chatwoot → يبعت لـ Botpress
@@ -38,16 +39,30 @@ app.post('/chatwoot/webhook', async (req, res) => {
             return res.status(200).json({ status: 'skipped' });
         }
         
-        // ✅ تجاهل لو المحادثة open (Agent شغال)
+        const chatwootConvId = String(payload.conversation.id);
         const convStatus = payload.conversation?.status;
+        
+        // ✅ تجاهل لو المحادثة open (Agent شغال)
         if (convStatus === 'open') {
             console.log('⏭️ Skipping - conversation is open (agent handling)');
+            // حفظ إن المحادثة كانت open
+            conversationStatusHistory.set(chatwootConvId, 'open');
             return res.status(200).json({ status: 'skipped - agent handling' });
         }
         
-        const chatwootConvId = String(payload.conversation.id);
         const chatwootUserId = String(payload.sender?.id || 'unknown');
         const messageId = String(payload.id || Date.now());
+        
+        // ✅ تحقق: هل المحادثة كانت open قبل كده ودلوقتي رجعت pending؟
+        const wasOpen = conversationStatusHistory.get(chatwootConvId) === 'open';
+        const isNowPending = convStatus === 'pending';
+        const shouldResetContext = wasOpen && isNowPending;
+        
+        if (shouldResetContext) {
+            console.log('🔄 Conversation returned to pending after agent - will reset context');
+            // امسح الـ history عشان المرة الجاية
+            conversationStatusHistory.delete(chatwootConvId);
+        }
         
         // حفظ الـ mapping
         conversationMap.set(chatwootConvId, {
@@ -72,7 +87,10 @@ app.post('/chatwoot/webhook', async (req, res) => {
                     text: payload.content,
                     chatwootConversationId: chatwootConvId,
                     chatwootUserId: chatwootUserId,
-                    senderName: payload.sender?.name || ''
+                    senderName: payload.sender?.name || '',
+                    conversationStatus: convStatus,
+                    // ✅ Flag جديد: هل المحادثة رجعت pending بعد ما كانت open؟
+                    shouldResetContext: shouldResetContext
                 }
             },
             {
